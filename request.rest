@@ -1,0 +1,29 @@
+@TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI1ZjAzOWM5MGM2MTkyZTRmYTg4MDk3NWIiLCJuYW1lIjoiYXVyb3JhIiwiaWF0IjoxNTk0MTIzNjM3LCJleHAiOjE1OTQxMjQyMzd9.mHGzJBY2LTt8JEME2S1JA9otKTnRaB-P1dZ1NMoqSxA
+@COOKIE = refreshtoken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI1ZjAzODhiNmEzMjA2NzIyYWMwYmNmZmMiLCJuYW1lIjoic2l6YXJjb3Jwc2UiLCJpYXQiOjE1OTQxMjM1NDcsImV4cCI6MTU5NDEyNDQ0N30.ubg-S6sIZ7lvUi_CuI07PcZitFbkIAvGaKUiluEb1Nc; Max-Age=160; Path=/api/user/refreshtoken; Expires=Tue, 07 Jul 2020 12:08:28 GMT; HttpOnly
+GET http://localhost:4000/asd
+
+###
+
+POST http://localhost:4000/api/user/signup
+Content-Type: application/json
+
+{
+    "username":"sizarcorpse",
+    "email":"sizarcorpse@sc.com",
+    "password":"sc123456789"
+}
+
+###
+POST http://localhost:4000/api/user/login
+Content-Type: application/json
+
+{
+    "email":"aurora@sc.com",
+    "password":"sc123456789"
+}
+###
+POST http://localhost:4000/api/user/refreshtoken
+Cookie: {{COOKIE}}
+###
+GET http://localhost:4000/api/user
+Authorization: Bearer {{TOKEN}}
