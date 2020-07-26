@@ -10,11 +10,13 @@ const commentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+
     commentStatus: {
       type: String,
       default: "original",
       enum: ["original", "edited"],
     },
+
     commentBody: {
       type: String,
       required: true,

@@ -6,7 +6,7 @@ const signupValidation = (data) => {
       .regex(/^[a-z0-9_.]+$/)
       .strip()
       .min(4)
-      .max(15)
+      .max(30)
       .lowercase()
       .required(),
     email: Joi.string().min(8).email().lowercase().required(),

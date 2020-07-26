@@ -22,46 +22,46 @@ const albumSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
-    //quick
+
     albumName: {
       type: String,
       required: true,
       trim: true,
       uppercase: true,
-      maxlength: 50,
+      maxlength: 100,
       minlength: 3,
     },
+
     albumDetails: { type: String },
+
     sector: {
       type: String,
       enum: ["wallpaper", "thots", "3dx"],
       required: true,
     },
 
-    //status
     status: {
       type: String,
       default: "public",
-      enum: ["public", "private", "followers"],
+      enum: ["public", "private", "followers", "draft"],
     },
 
-    //auto
     albumTotalPhotos: { type: Number, default: 0, min: 0 },
+
     albumCoverPhoto: String,
 
-    //interact
-    isLoveCount: { type: Number, default: 0 },
+    numAlbumViewCount: { type: Number, default: 0 },
+    numLoveCount: { type: Number, default: 0 },
+    numFavoriteCount: { type: Number, default: 0 },
+    numLikeCount: { type: Number, default: 0 },
+    numCommentCount: { type: Number, default: 0 },
+    numAddedCollecion: { type: Number, default: 0 },
 
-    //comments
-
-    commentCount: { type: Number, default: 0 },
     comments: [{ type: Schema.Types.ObjectId, ref: "Comment" }], // this is not used yet. if i want yo populate comment via album then i need this
 
-    //postadd
     albumCategories: [albumCategories],
     albumTags: [albumTags],
 
-    //artist
     artistName: {
       type: String,
       trim: true,
@@ -70,7 +70,6 @@ const albumSchema = new Schema(
     },
     coArtistNames: [coArtistNames],
 
-    //model
     modelName: {
       type: String,
       trim: true,
@@ -83,3 +82,61 @@ const albumSchema = new Schema(
 );
 
 Album = module.exports = mongoose.model("Album", albumSchema);
+
+/*
+
+
+
+
+
+
+
+
+
+
+
+      const userx = await User.find({
+        followers: { $elemMatch: { $eq: req.user._id } },
+      }).populate("createdAlbums");
+
+      const lc = [];
+      userx.map((ux) => {
+        lc.push(ux.createdAlbums);
+      });
+      res.send(lc);
+
+
+
+
+
+      // router.get(
+//   "/:sector",
+//   isAuthenticatedUser,
+//   Pagination,
+//   async (req, res, next) => {
+//     var status;
+//     const sector = req.params.sector;
+//     if (
+//       req.query.status ? (status = req.query.status) : (status = "followers")
+//     );
+//     try {
+//       const albums = await Album.find({
+//         sector: sector,
+//         status: status,
+//       })
+//         .select("albumName sector status uploader")
+//         .skip((req.query.page - 1) * req.query.items)
+//         .limit(req.query.items)
+//         .sort({ albumCreatedAt: "desc" })
+//         .exec();
+
+//       res.status(200).json(albums);
+//     } catch (error) {
+//       res.status(404);
+//       next(error);
+//     }
+//   }
+// );
+
+
+*/

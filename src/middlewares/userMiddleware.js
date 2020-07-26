@@ -41,4 +41,17 @@ module.exports = {
       next(error);
     }
   },
+
+  AdminOnly: async (req, res, next) => {
+    try {
+      if (req.user.role === "admin") {
+        req.admin = req.user;
+        next();
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      next(error);
+    }
+  },
 };

@@ -3,10 +3,15 @@ const { sign } = require("jsonwebtoken");
 
 const generateAccessToken = (user) => {
   const token = sign(
-    { _id: user.id, username: user.username, role: user.role },
+    {
+      _id: user.id,
+      username: user.username,
+      role: user.role,
+      profilePhoto: user.profilePhoto,
+    },
     process.env.SECRET_TOKEN,
     {
-      expiresIn: "2h",
+      expiresIn: "7d",
     }
   );
   return token;
@@ -14,10 +19,15 @@ const generateAccessToken = (user) => {
 
 const generateRefreshToken = (user) => {
   const token = sign(
-    { _id: user.id, username: user.username, role: user.role },
+    {
+      _id: user.id,
+      username: user.username,
+      role: user.role,
+      profilePhoto: user.profilePhoto,
+    },
     process.env.REFRESH_TOKEN,
     {
-      expiresIn: "2h",
+      expiresIn: "7d",
     }
   );
   return token;

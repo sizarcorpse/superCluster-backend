@@ -3,6 +3,7 @@ const router = express.Router();
 const ObjectId = require("mongodb").ObjectID;
 
 const User = require("../../../models/User");
+const UserStats = require("../../../models/userStats");
 const AlbumLove = require("../../../models/albumLove");
 
 const isAuthenticatedUser = require("../../../middlewares/isAuthenticatedUser");
@@ -17,58 +18,59 @@ router.patch("/follow/:UserID", isAuthenticatedUser, async (req, res, next) => {
   try {
     const followingID = req.params.UserID;
 
-    //follwoing ::
     if (!ObjectId.isValid(req.params.UserID)) {
-      return res.status(404).json({ error: "invalid id" });
+      throw new Error("no user");
     }
 
+    const followingUser = await User.findOne({ _id: followingID });
+    if (!followingUser) {
+      throw new Error("no user");
+    }
     if (req.user._id === req.params.UserID) {
-      return res.status(404).json({ error: " cant follow yourself" });
+      throw new Error("cant follow yourself");
     }
 
     const followingQuery = {
       _id: req.user._id,
       following: { $not: { $elemMatch: { $eq: followingID } } },
     };
-
     const updateFollowing = {
       $addToSet: { following: followingID },
-      $inc: { followingCount: +1 },
     };
+    const { nModified } = await User.updateOne(followingQuery, updateFollowing);
+    try {
+      if (nModified === 1) {
+        await UserStats.updateOne(
+          { parentUser: req.user._id },
+          { $inc: { numFollowing: +1 } }
+        );
 
-    const followingUpdated = await User.updateOne(
-      followingQuery,
-      updateFollowing
-    );
+        //followers
 
-    //followers
-
-    const followersQuery = {
-      _id: followingID,
-      followers: { $not: { $elemMatch: { $eq: req.user._id } } },
-    };
-
-    const followersUpdate = {
-      $addToSet: { followers: req.user._id },
-      $inc: { followersCount: +1 },
-    };
-
-    const followersUpdated = await User.updateOne(
-      followersQuery,
-      followersUpdate
-    );
-
-    //validate
-
-    if (!followingUpdated || !followersUpdated) {
-      return res.status(404).json({ error: "Unable to follow that user" });
+        const followersQuery = {
+          _id: followingID,
+          followers: { $not: { $elemMatch: { $eq: req.user._id } } },
+        };
+        const followersUpdate = {
+          $addToSet: { followers: req.user._id },
+        };
+        await User.updateOne(followersQuery, followersUpdate);
+        await UserStats.updateOne(
+          { parentUser: followingID },
+          { $inc: { numFollowers: +1 } }
+        );
+      } else {
+        return res.status(200).json("u already followed");
+      }
+    } catch (error) {
+      res.status(501);
+      next(error);
     }
 
-    //responce
-
-    res.status(200).json(followingUpdated);
+    res.status(200).json("followingUpdated");
   } catch (error) {
-    console.log(error);
+    res.status(404);
+    next(error);
   }
 });
 
@@ -77,53 +79,68 @@ router.patch("/follow/:UserID", isAuthenticatedUser, async (req, res, next) => {
 // @api :: /api/user/unfollow/:UserID
 // @website ::  Website Url
 
-router.patch("/unfollow/:UserID", isAuthenticatedUser, async (req, res) => {
-  try {
-    const id = req.params.UserID;
+router.patch(
+  "/unfollow/:UserID",
+  isAuthenticatedUser,
+  async (req, res, next) => {
+    try {
+      const unFollowingUserID = req.params.UserID;
 
-    if (!ObjectId.isValid(req.params.UserID)) {
-      return res.status(404).json({ error: "invalid id" });
+      if (!ObjectId.isValid(req.params.UserID)) {
+        throw new Error("no user");
+      }
+      const unFollowingUser = await User.findOne({ _id: unFollowingUserID });
+      if (!unFollowingUser) {
+        throw new Error("no user");
+      }
+
+      if (req.user._id === unFollowingUserID) {
+        throw new Error("cant unfollow yourself");
+      }
+
+      // remove the id of the user you want to unfollow from following array
+      const query = {
+        _id: req.user._id,
+        following: { $elemMatch: { $eq: unFollowingUserID } },
+      };
+      const update = {
+        $pull: { following: unFollowingUserID },
+      };
+      const { n, nModified } = await User.updateOne(query, update);
+      try {
+        if (nModified === 1 && n === 1) {
+          await UserStats.updateOne(
+            { parentUser: req.user._id },
+            { $inc: { numFollowing: -1 } }
+          );
+
+          const followersQuery = {
+            _id: unFollowingUserID,
+            followers: { $elemMatch: { $eq: req.user._id } },
+          };
+
+          const followersUpdate = {
+            $pull: { followers: req.user._id },
+          };
+          await User.updateOne(followersQuery, followersUpdate);
+          await UserStats.updateOne(
+            { parentUser: unFollowingUserID },
+            { $inc: { numFollowers: -1 } }
+          );
+        } else {
+          return res.status(200).json("u already unfollowed");
+        }
+      } catch (error) {
+        res.status(501);
+        next(error);
+      }
+
+      res.status(200).json("unfollowed");
+    } catch (err) {
+      res.status(400).send({ error: err.message });
     }
-
-    if (req.user._id === id) {
-      return res.status(400).json({ error: "You cannot unfollow yourself" });
-    }
-
-    // remove the id of the user you want to unfollow from following array
-    const query = {
-      _id: req.user._id,
-      following: { $elemMatch: { $eq: id } },
-    };
-
-    const update = {
-      $pull: { following: id },
-      $inc: { followingCount: -1 },
-    };
-
-    const updated = await User.updateOne(query, update);
-
-    // remove your id from the followers array of the user you want to unfollow
-    const secondQuery = {
-      _id: id,
-      followers: { $elemMatch: { $eq: req.user._id } },
-    };
-
-    const secondUpdate = {
-      $pull: { followers: req.user._id },
-      $inc: { followersCount: -1 },
-    };
-
-    const secondUpdated = await User.updateOne(secondQuery, secondUpdate);
-
-    if (!updated || !secondUpdated) {
-      return res.status(404).json({ error: "Unable to unfollow that user" });
-    }
-
-    res.status(200).json(update);
-  } catch (err) {
-    res.status(400).send({ error: err.message });
   }
-});
+);
 
 // @route :: Get
 // @description :: user Profile
@@ -134,13 +151,14 @@ router.get(
   isAuthenticatedUser,
 
   async (req, res, next) => {
-    // write your code here
     try {
       if (req.user.username === req.params.username) {
         const userDetails = await User.findOne({
           username: req.user.username,
         })
           .populate("createdAlbums", "albumName _id")
+          .populate("profile")
+          .populate("stats")
           .exec();
         if (!userDetails) {
           res.status(404);
@@ -151,20 +169,25 @@ router.get(
           });
         }
       } else if (req.params.username != req.user.username) {
-        console.log("yes this is someone profile profile");
         const userDetails = await User.findOne({
           username: req.params.username,
-        }).select("-following");
+        })
+          .populate("profile", "-parentUser")
+          .populate("stats")
+          .select("-following");
         if (!userDetails) {
           res.status(404);
           throw new Error("No user");
         } else {
+          await UserStats.updateOne(
+            { parentUser: userDetails._id },
+            { $inc: { numGetProfileViews: +1 } }
+          );
+
           res.status(200).send({
             username: userDetails.username,
-            followers: userDetails.followersCount,
-            following: userDetails.followingCount,
-            createdAlbums: userDetails.createdAlbums,
-            createdAlbums: userDetails.createdAlbumsCount,
+            prifle: userDetails.profile,
+            stats: userDetails.stats,
           });
         }
       } else {
@@ -188,10 +211,29 @@ router.get(
   CheckUserExists,
   async (req, res, next) => {
     try {
-      const user = req.queryuser;
-      const followers = await user.followers;
+      const user = await User.findOne({
+        username: req.params.username,
+      }).populate({
+        path: "followers",
+        model: "User",
+        select: "username",
+        populate: {
+          path: "stats",
+          model: "UserStats",
+          select: "numFollowers",
+        },
+      });
 
-      res.status(200).send({
+      const followers = [];
+      user.followers.map((us) => {
+        followers.push({
+          _id: us._id,
+          username: us.username,
+          followers: us.stats.numFollowers,
+        });
+      });
+
+      res.status(200).json({
         followers,
       });
     } catch (error) {
@@ -212,11 +254,30 @@ router.get(
 
   async (req, res, next) => {
     try {
-      const user = req.queryuser;
       if (req.user.username == req.params.username) {
-        const following = await user.following;
+        const user = await User.findOne({
+          username: req.params.username,
+        }).populate({
+          path: "following",
+          model: "User",
+          select: "username",
+          populate: {
+            path: "stats",
+            model: "UserStats",
+            select: "numFollowing",
+          },
+        });
 
-        res.status(200).send({
+        const following = [];
+        user.following.map((us) => {
+          following.push({
+            _id: us._id,
+            username: us.username,
+            following: us.stats.numFollowing,
+          });
+        });
+
+        res.status(200).json({
           following,
         });
       } else {
@@ -313,4 +374,8 @@ router.get(
   }
 );
 
+// @TODO ::  recent created album
+
 module.exports = router;
+
+//5f19a4d5a5ded405c85784ca

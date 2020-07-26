@@ -6,6 +6,8 @@ const { genSaltSync, hashSync, compare } = require("bcryptjs");
 const { verify } = require("jsonwebtoken");
 
 const User = require("../../../models/User");
+const UserProfile = require("../../../models/userProfile");
+const UserStats = require("../../../models/userStats");
 
 const { signupValidation, loginValidation } = require("./signupValidation");
 const {
@@ -42,19 +44,30 @@ router.post("/signup", async (req, res, next) => {
     const hashPassword = await hashSync(req.body.password, salt);
 
     // create new user
+
     const user = new User({
       username: req.body.username,
       email: req.body.email,
       password: hashPassword,
     });
+    const profile = new UserProfile({
+      parentUser: user,
+    });
+    const stats = new UserStats({
+      parentUser: user,
+    });
+
+    user.profile = profile;
+    user.stats = stats;
 
     try {
-      console.log(user);
       const newUser = await user.save();
+      await profile.save();
+      await stats.save();
+
       res.send({
         Username: newUser.username,
         Email: newUser.email,
-        Password: newUser.password,
       });
     } catch (err) {
       res.status(400).json(err);

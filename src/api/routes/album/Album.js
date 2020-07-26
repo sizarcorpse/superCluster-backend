@@ -7,6 +7,7 @@ const ObjectId = require("mongodb").ObjectID;
 // @model ::
 const Album = require("../../../models/Album");
 const User = require("../../../models/User");
+const UserStats = require("../../../models/userStats");
 const AlbumLove = require("../../../models/albumLove");
 const Comment = require("../../../models/Comment");
 
@@ -30,6 +31,7 @@ const {
   CoModelExists,
   CoMIdExists,
 } = require("../../../middlewares/albumMiddleware");
+const userStats = require("../../../models/userStats");
 
 // @route :: POST
 // @description :: create new album
@@ -58,27 +60,32 @@ router.post("/a/new", isAuthenticatedUser, async (req, res, next) => {
     try {
       const newAlbum = await album.save();
 
-      const userAlbumsQuery = {
-        _id: req.user._id,
-      };
-      const addAlbumToUser = {
-        $addToSet: { createdAlbums: newAlbum._id },
-        $inc: { createdAlbumsCount: +1 },
-      };
+      if (newAlbum) {
+        const userAlbumsQuery = {
+          _id: req.user._id,
+        };
+        const addAlbumToUser = {
+          $addToSet: { createdAlbums: newAlbum._id },
+        };
+        const { n, nModified } = await User.updateOne(
+          userAlbumsQuery,
+          addAlbumToUser
+        );
+        if (n === 1 && nModified === 1) {
+          await UserStats.updateOne(
+            { parentUser: req.user._id },
+            { $inc: { numCreatedAlbum: +1 } }
+          );
 
-      const updateCreatedAlbums = await User.updateOne(
-        userAlbumsQuery,
-        addAlbumToUser
-      );
-      //validate
-      if (!newAlbum || !updateCreatedAlbums) {
-        res.status(500);
-        next(error);
+          res.status(201).send({
+            ...newAlbum._doc,
+            createdAt: new Date(newAlbum._doc.createdAt).toDateString(),
+          });
+        } else {
+          throw new Error();
+        }
       } else {
-        res.status(201).send({
-          ...newAlbum._doc,
-          createdAt: new Date(newAlbum._doc.createdAt).toDateString(),
-        });
+        throw new Error();
       }
     } catch (error) {
       res.status(422);
@@ -149,25 +156,57 @@ router.get(
 // @api :: albums/all
 
 router.get(
-  "/:sector",
+  "/:sector/followed",
   isAuthenticatedUser,
   Pagination,
   async (req, res, next) => {
-    var status;
     const sector = req.params.sector;
-    if (req.query.status ? (status = req.query.status) : (status = "public"));
     try {
+      const { following } = await User.findOne({ _id: req.user._id })
+        .select("following")
+        .exec();
+
       const albums = await Album.find({
         sector: sector,
-        status: status,
+        $or: [{ status: "followers" }, { status: "public" }],
+        uploader: { $in: following },
       })
         .select("albumName sector status uploader")
         .skip((req.query.page - 1) * req.query.items)
         .limit(req.query.items)
-        .sort({ albumCreatedAt: "desc" })
+        .sort({ createdAt: "desc" })
         .exec();
 
-      res.status(200).json(albums);
+      res.send(albums);
+    } catch (error) {
+      res.status(404);
+      next(error);
+    }
+  }
+);
+
+// @route :: GET
+// @description :: Get all album from each sector with album details. exclude phtos
+// @api :: albums/all
+
+router.get(
+  "/:sector/explore",
+  isAuthenticatedUser,
+  Pagination,
+  async (req, res, next) => {
+    const sector = req.params.sector;
+    try {
+      const albums = await Album.find({
+        sector: sector,
+        $or: [{ status: "public" }],
+      })
+        .select("albumName sector status uploader")
+        .skip((req.query.page - 1) * req.query.items)
+        .limit(req.query.items)
+        .sort({ createdAt: "desc" })
+        .exec();
+
+      res.send(albums);
     } catch (error) {
       res.status(404);
       next(error);
@@ -183,12 +222,46 @@ router.get(
   "/a/d/:albumID",
   isAuthenticatedUser,
   CheckAlbumExists,
+  CheckRole,
   async (req, res, next) => {
     try {
       const album = await Album.findOne({ _id: req.params.albumID }).exec();
-      res.status(200).send({
-        ...album._doc,
-      });
+
+      if (req.user._id == album.uploader || req.admin) {
+        res.status(200).send({
+          ...album._doc,
+        });
+      } else if (req.user._id !== album.uploader) {
+        if (album.status === "public") {
+          res.status(200).send({
+            ...album._doc,
+          });
+        } else if (album.status === "followers") {
+          const userx = await User.findOne({
+            _id: album.uploader,
+            followers: { $in: req.user },
+          });
+          if (userx) {
+            res.status(200).send({
+              ...album._doc,
+            });
+          } else {
+            res
+              .status(200)
+              .json({ message: "you have to follow this user to this album" });
+          }
+        } else {
+          throw new Error();
+        }
+
+        await album.update({ $inc: { numAlbumViewCount: +1 } });
+        await UserStats.updateOne(
+          { parentUser: album.uploader },
+          { $inc: { numAlbumViews: +1 } }
+        );
+      } else {
+        throw new Error();
+      }
     } catch (error) {
       res.status(404);
       next(error);
@@ -468,42 +541,83 @@ router.post(
     const album = req.album;
     const user = req.user;
     try {
-      const checkLoved = await AlbumLove.findOne({
-        album: album._id,
-        user: user._id,
-      });
-      if (checkLoved) {
-        await checkLoved.delete();
-
-        await User.updateOne(
-          { _id: req.user._id },
-          { $inc: { lovedAlbumCount: -1 } }
-        );
-        await Album.updateOne(
-          { _id: req.params.albumID },
-          { $inc: { isLoveCount: -1 } }
-        );
-        res.status(201).json({
-          message: "Album has been unLoved",
+      const love = async () => {
+        const checkLoved = await AlbumLove.findOne({
+          album: album._id,
+          user: user._id,
         });
+        if (checkLoved) {
+          const dt = await checkLoved.delete();
+          if (dt) {
+            const { n, nModified } = await Album.updateOne(
+              { _id: album._id },
+              { $inc: { numLoveCount: -1 } }
+            );
+            if (n === 1 && nModified === 1) {
+              await UserStats.updateOne(
+                { parentUser: album.uploader._id },
+                { $inc: { numGetLove: -1 } }
+              );
+              await UserStats.updateOne(
+                { parentUser: req.user._id },
+                { $inc: { numAlbumLove: -1 } }
+              );
+
+              res.status(201).json({
+                message: "Album has been unLoved",
+              });
+            }
+          } else {
+            throw new Error();
+          }
+        } else {
+          const newAlbumLove = new AlbumLove({
+            album: album,
+            user: user,
+          });
+          const loveCreated = await newAlbumLove.save();
+
+          if (loveCreated) {
+            const { n, nModified } = await Album.updateOne(
+              { _id: album._id },
+              { $inc: { numLoveCount: +1 } }
+            );
+            if (n === 1 && nModified === 1) {
+              await UserStats.updateOne(
+                { parentUser: album.uploader._id },
+                { $inc: { numGetLove: +1 } }
+              );
+              await UserStats.updateOne(
+                { parentUser: req.user._id },
+                { $inc: { numAlbumLove: +1 } }
+              );
+              res.status(201).json({
+                message: "Album has been Loved",
+              });
+            }
+          } else {
+            throw new Error();
+          }
+        }
+      };
+
+      if (req.user._id == album.uploader._id || album.status === "public") {
+        love();
+      } else if (
+        req.user._id !== album.uploader._id &&
+        album.status === "followers"
+      ) {
+        const userx = await User.findOne({
+          _id: album.uploader._id,
+          followers: { $in: req.user },
+        });
+        if (!userx) {
+          throw new Error("followers only an love this album");
+        } else {
+          love();
+        }
       } else {
-        const newAlbumLove = new AlbumLove({
-          album: album,
-          user: user,
-        });
-        await newAlbumLove.save();
-
-        await User.updateOne(
-          { _id: req.user._id },
-          { $inc: { lovedAlbumCount: +1 } }
-        );
-        await Album.updateOne(
-          { _id: req.params.albumID },
-          { $inc: { isLoveCount: +1 } }
-        );
-        res.status(201).json({
-          message: "Album has been Loved",
-        });
+        throw new Error();
       }
     } catch (error) {
       res.status(400);

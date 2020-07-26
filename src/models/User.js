@@ -9,6 +9,10 @@ const userSchema = new mongoose.Schema({
     unique: true,
     lowercase: true,
   },
+  profilePhoto: {
+    type: String,
+    default: "No Photos",
+  },
   email: {
     type: String,
     require: true,
@@ -25,6 +29,12 @@ const userSchema = new mongoose.Schema({
     min: 8,
     select: false,
   },
+  role: {
+    type: String,
+    enum: ["admin", "stuff", "rookie"],
+    default: "rookie",
+    // immutable: true,
+  },
 
   // token
   refreshToken: {
@@ -32,36 +42,15 @@ const userSchema = new mongoose.Schema({
     select: false,
   },
 
-  //role
-  role: {
-    type: String,
-    default: "rookie",
-    enum: ["admin", "stuff", "rookie"],
+  profile: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "UserProfile",
+    immutable: true,
   },
-
-  //profile
-  name: {
-    type: String,
-  },
-  Bio: { type: String },
-  website: { type: String },
-
-  //profile stat
-  createdAlbumsCount: {
-    type: Number,
-    default: 0,
-  },
-  lovedAlbumCount: {
-    type: Number,
-    default: 0,
-  },
-  followingCount: {
-    type: Number,
-    default: 0,
-  },
-  followersCount: {
-    type: Number,
-    default: 0,
+  stats: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "UserStats",
+    immutable: true,
   },
 
   // assets
@@ -73,7 +62,6 @@ const userSchema = new mongoose.Schema({
   ],
 
   // followers and following
-
   following: [
     {
       type: mongoose.Schema.Types.ObjectId,
