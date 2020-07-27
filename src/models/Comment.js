@@ -32,6 +32,7 @@ const commentSchema = new mongoose.Schema(
       },
     ],
 
+    commentReplyCount: { type: Number, default: 0 },
     reply: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reply" }],
   },
   { timestamps: true }

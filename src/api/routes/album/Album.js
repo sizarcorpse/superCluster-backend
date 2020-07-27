@@ -9,6 +9,8 @@ const Album = require("../../../models/Album");
 const User = require("../../../models/User");
 const UserStats = require("../../../models/userStats");
 const AlbumLove = require("../../../models/albumLove");
+const AlbumFavorite = require("../../../models/albumFavorite");
+const AlbumLike = require("../../../models/albumLike");
 const Comment = require("../../../models/Comment");
 
 const isAuthenticatedUser = require("../../../middlewares/isAuthenticatedUser");
@@ -613,6 +615,192 @@ router.post(
         });
         if (!userx) {
           throw new Error("followers only an love this album");
+        } else {
+          love();
+        }
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      res.status(400);
+      next(error);
+    }
+  }
+);
+
+// @route ::  POST
+// @description ::  Love and un love
+// @api ::  /albums/album/:albumID/dt/:tagID
+
+router.post(
+  "/a/:albumID/favorite",
+  isAuthenticatedUser,
+  CheckAlbumExists,
+  async (req, res, next) => {
+    const album = req.album;
+    const user = req.user;
+    try {
+      const love = async () => {
+        const checkFavorite = await AlbumFavorite.findOne({
+          album: album._id,
+          user: user._id,
+        });
+        if (checkFavorite) {
+          const dt = await checkFavorite.delete();
+          if (dt) {
+            const { n, nModified } = await Album.updateOne(
+              { _id: album._id },
+              { $inc: { numFavoriteCount: -1 } }
+            );
+            if (n === 1 && nModified === 1) {
+              await UserStats.updateOne(
+                { parentUser: album.uploader._id },
+                { $inc: { numGetFavorite: -1 } }
+              );
+              await UserStats.updateOne(
+                { parentUser: req.user._id },
+                { $inc: { numAlbumFavorite: -1 } }
+              );
+
+              res.status(201).json({
+                message: "Album has been Unfavorite",
+              });
+            }
+          } else {
+            throw new Error();
+          }
+        } else {
+          const newAlbumFavorite = new AlbumFavorite({
+            album: album,
+            user: user,
+          });
+          const favoriteCreated = await newAlbumFavorite.save();
+
+          if (favoriteCreated) {
+            const { n, nModified } = await Album.updateOne(
+              { _id: album._id },
+              { $inc: { numFavoriteCount: +1 } }
+            );
+            if (n === 1 && nModified === 1) {
+              await UserStats.updateOne(
+                { parentUser: album.uploader._id },
+                { $inc: { numGetFavorite: +1 } }
+              );
+              await UserStats.updateOne(
+                { parentUser: req.user._id },
+                { $inc: { numAlbumFavorite: +1 } }
+              );
+              res.status(201).json({
+                message: "Album has been Favorite",
+              });
+            }
+          } else {
+            throw new Error();
+          }
+        }
+      };
+
+      if (req.user._id == album.uploader._id || album.status === "public") {
+        love();
+      } else if (
+        req.user._id !== album.uploader._id &&
+        album.status === "followers"
+      ) {
+        const userx = await User.findOne({
+          _id: album.uploader._id,
+          followers: { $in: req.user },
+        });
+        if (!userx) {
+          throw new Error("followers only an favorite this album");
+        } else {
+          love();
+        }
+      } else {
+        throw new Error();
+      }
+    } catch (error) {
+      res.status(400);
+      next(error);
+    }
+  }
+);
+
+// @route ::  POST
+// @description ::  Love and un love
+// @api ::  /albums/album/:albumID/dt/:tagID
+
+router.post(
+  "/a/:albumID/like",
+  isAuthenticatedUser,
+  CheckAlbumExists,
+  async (req, res, next) => {
+    const album = req.album;
+    const user = req.user;
+    try {
+      const love = async () => {
+        const checkLike = await AlbumLike.findOne({
+          album: album._id,
+          user: user._id,
+        });
+        if (checkLike) {
+          const dt = await checkLike.delete();
+          if (dt) {
+            const { n, nModified } = await Album.updateOne(
+              { _id: album._id },
+              { $inc: { numLikeCount: -1 } }
+            );
+            if (n === 1 && nModified === 1) {
+              await UserStats.updateOne(
+                { parentUser: album.uploader._id },
+                { $inc: { numGetLike: -1 } }
+              );
+
+              res.status(201).json({
+                message: "Album has been unLiked",
+              });
+            }
+          } else {
+            throw new Error();
+          }
+        } else {
+          const newAlbumLike = new AlbumLike({
+            album: album,
+            user: user,
+          });
+          const likeCreated = await newAlbumLike.save();
+
+          if (likeCreated) {
+            const { n, nModified } = await Album.updateOne(
+              { _id: album._id },
+              { $inc: { numLikeCount: +1 } }
+            );
+            if (n === 1 && nModified === 1) {
+              await UserStats.updateOne(
+                { parentUser: album.uploader._id },
+                { $inc: { numGetLike: +1 } }
+              );
+              res.status(201).json({
+                message: "Album has been Like",
+              });
+            }
+          } else {
+            throw new Error();
+          }
+        }
+      };
+
+      if (req.user._id == album.uploader._id || album.status === "public") {
+        love();
+      } else if (
+        req.user._id !== album.uploader._id &&
+        album.status === "followers"
+      ) {
+        const userx = await User.findOne({
+          _id: album.uploader._id,
+          followers: { $in: req.user },
+        });
+        if (!userx) {
+          throw new Error("followers only an favorite this album");
         } else {
           love();
         }

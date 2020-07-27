@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const albumFavoriteSchema = new mongoose.Schema(
+const albumLikeSchema = new mongoose.Schema(
   {
     album: {
       type: mongoose.Schema.Types.ObjectId,
@@ -14,4 +14,4 @@ const albumFavoriteSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("AlbumFavorite", albumFavoriteSchema);
+module.exports = mongoose.model("AlbumLike", albumLikeSchema);

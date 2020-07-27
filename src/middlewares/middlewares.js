@@ -20,6 +20,12 @@ const errorHandler = (error, req, res, next) => {
       error: error.name,
       message: "Unauthorized",
     });
+  } else if (statusCode === 404 && error.name === "CastError") {
+    res.json({
+      error: error.name,
+      errorPath: error.path,
+      message: "invalid object id",
+    });
   } else {
     res.json({
       error: error.name,

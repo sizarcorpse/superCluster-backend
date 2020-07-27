@@ -25,7 +25,7 @@ const userStatsSchema = new mongoose.Schema({
 
   numGetLove: number, // collect total love get from all created album + collcetion
   numGetFavorite: number, // collect total favorite get from all created album + collection
-  numGetLike: number, // collect total like get from all created album + collcetion
+  numGetLike: number, // collect total like get from all created album + collcetion + comment + reply
   numGetComment: number, // collect total comment + reply get from all created album
 
   numPostComment: number, //collect all comment posted
