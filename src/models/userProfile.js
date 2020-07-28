@@ -9,7 +9,7 @@ const userProfileSchema = new mongoose.Schema({
     type: String,
     default: "your name",
   },
-  Bio: { type: String, default: "your bio" },
+  bio: { type: String, default: "your bio" },
   website: { type: String, default: "www.youresite.com" },
 });
 

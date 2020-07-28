@@ -4,11 +4,15 @@ const ObjectId = require("mongodb").ObjectID;
 
 const User = require("../../../models/User");
 const UserStats = require("../../../models/userStats");
+const UserProfile = require("../../../models/userProfile");
 const AlbumLove = require("../../../models/albumLove");
+const Notification = require("../../../models/Notification");
 
 const isAuthenticatedUser = require("../../../middlewares/isAuthenticatedUser");
 
+const { profileValidation } = require("../user/signupValidation");
 const { CheckUserExists } = require("../../../middlewares/userMiddleware");
+
 // @route :: PATCH
 // @description :: Following a user
 // @api :: /api/user/follow/:UserID
@@ -146,52 +150,84 @@ router.patch(
 // @description :: user Profile
 // @api :: /api/user/unfollow/:UserID
 
-router.get(
-  "/:username",
-  isAuthenticatedUser,
+router.get("/:username", isAuthenticatedUser, async (req, res, next) => {
+  try {
+    if (req.user.username === req.params.username) {
+      const userDetails = await User.findOne({
+        username: req.user.username,
+      })
+        .populate("createdAlbums", "albumName _id")
+        .populate("profile")
+        .populate("stats")
+        .exec();
+      if (!userDetails) {
+        res.status(404);
+        throw new Error("No user");
+      } else {
+        res.status(200).send({
+          ...userDetails._doc,
+        });
+      }
+    } else if (req.params.username != req.user.username) {
+      const userDetails = await User.findOne({
+        username: req.params.username,
+      })
+        .populate("profile", "-parentUser")
+        .populate("stats")
+        .select("-following");
+      if (!userDetails) {
+        res.status(404);
+        throw new Error("No user");
+      } else {
+        await UserStats.updateOne(
+          { parentUser: userDetails._id },
+          { $inc: { numGetProfileViews: +1 } }
+        );
 
+        res.status(200).send({
+          username: userDetails.username,
+          prifle: userDetails.profile,
+          stats: userDetails.stats,
+        });
+      }
+    } else {
+      res.status(404);
+      throw new Error();
+    }
+  } catch (error) {
+    res.status(400);
+    next(error);
+  }
+});
+
+// @route :: POST
+// @description :: user Profile edit
+// @api :: /api/user/unfollow/:UserID
+
+router.post(
+  "/:username/profile/edit",
+  isAuthenticatedUser,
   async (req, res, next) => {
     try {
       if (req.user.username === req.params.username) {
-        const userDetails = await User.findOne({
-          username: req.user.username,
-        })
-          .populate("createdAlbums", "albumName _id")
-          .populate("profile")
-          .populate("stats")
-          .exec();
-        if (!userDetails) {
-          res.status(404);
-          throw new Error("No user");
+        const profile = await UserProfile.findOne({ parentUser: req.user._id });
+        if (!profile) {
+          throw new Error();
         } else {
-          res.status(200).send({
-            ...userDetails._doc,
-          });
-        }
-      } else if (req.params.username != req.user.username) {
-        const userDetails = await User.findOne({
-          username: req.params.username,
-        })
-          .populate("profile", "-parentUser")
-          .populate("stats")
-          .select("-following");
-        if (!userDetails) {
-          res.status(404);
-          throw new Error("No user");
-        } else {
-          await UserStats.updateOne(
-            { parentUser: userDetails._id },
-            { $inc: { numGetProfileViews: +1 } }
-          );
-
-          res.status(200).send({
-            username: userDetails.username,
-            prifle: userDetails.profile,
-            stats: userDetails.stats,
-          });
+          const { error } = profileValidation(req.body);
+          if (error) {
+            res.status(422);
+            next(error);
+          } else {
+            const { n, nModified } = await profile.updateOne(req.body);
+            if (n === 1 && nModified === 1) {
+              res.status(200).json("profile has been updated");
+            } else {
+              res.status(501).json("sorry something worng");
+            }
+          }
         }
       } else {
-        res.status(404);
         throw new Error();
       }
     } catch (error) {
@@ -216,23 +252,32 @@ router.get(
       }).populate({
         path: "followers",
         model: "User",
-        select: "username",
+        select: "username followers",
         populate: {
           path: "stats",
           model: "UserStats",
           select: "numFollowers",
         },
       });
+      var followers = [];
 
-      const followers = [];
       user.followers.map((us) => {
-        followers.push({
-          _id: us._id,
-          username: us.username,
-          followers: us.stats.numFollowers,
-        });
+        if (us.followers.includes(req.user._id)) {
+          followers.push({
+            _id: us._id,
+            username: us.username,
+            followers: us.stats.numFollowers,
+            followedUser: true,
+          });
+        } else {
+          followers.push({
+            _id: us._id,
+            username: us.username,
+            followers: us.stats.numFollowers,
+            followedUser: false,
+          });
+        }
       });
-
       res.status(200).json({
         followers,
       });
@@ -369,6 +414,26 @@ router.get(
       }
     } catch (error) {
       res.status(401);
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/:username/notification",
+  isAuthenticatedUser,
+  async (req, res, next) => {
+    try {
+      if (req.user.username === req.params.username) {
+        const notifications = await Notification.find({
+          receiver: req.user._id,
+          seen: false,
+        }).sort({ albumCreatedAt: "desc" });
+
+        res.status(200).json({ notifications });
+      }
+    } catch (error) {
+      res.status(400);
       next(error);
     }
   }

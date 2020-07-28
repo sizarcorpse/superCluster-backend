@@ -24,5 +24,21 @@ const loginValidation = (data) => {
 
   return mySchema.validate(data);
 };
+
+const profileValidation = (data) => {
+  const mySchema = Joi.object().keys({
+    name: Joi.string()
+      .min(4)
+      .max(30)
+      .regex(/^[a-zA-Z0-9_.\s]+$/)
+      .strip(),
+    bio: Joi.string().max(400).strip(),
+    website: Joi.string().domain(),
+  });
+
+  return mySchema.validate(data);
+};
+
 module.exports.signupValidation = signupValidation;
 module.exports.loginValidation = loginValidation;
+module.exports.profileValidation = profileValidation;

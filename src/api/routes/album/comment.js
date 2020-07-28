@@ -9,6 +9,7 @@ const UserStats = require("../../../models/userStats");
 const AlbumLove = require("../../../models/albumLove");
 const Comment = require("../../../models/Comment");
 const Reply = require("../../../models/reply");
+const Notification = require("../../../models/Notification");
 
 const isAuthenticatedUser = require("../../../middlewares/isAuthenticatedUser");
 const { createAlbumValidate } = require("../../../middlewares/albumValidation");
@@ -68,6 +69,15 @@ router.post(
                   { parentUser: user._id },
                   { $inc: { numPostComment: +1 } }
                 );
+
+                const newNotification = new Notification({
+                  sender: req.user,
+                  receiver: album.uploader._id,
+                  trigger: "comment",
+                  albumNotification: req.album._id,
+                  notification: `${user.username} comment on your album ${album.albumName}`,
+                });
+                await newNotification.save();
 
                 res.status(201).json({
                   message: "comment has been created",
