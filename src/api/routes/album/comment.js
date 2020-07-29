@@ -44,7 +44,7 @@ router.post(
         } else {
           try {
             const newComment = new Comment({
-              album: album,
+              profile: album,
               user: user,
               commentBody: req.body.commentBody,
             });
@@ -70,15 +70,19 @@ router.post(
                   { $inc: { numPostComment: +1 } }
                 );
 
-                const newNotification = new Notification({
-                  sender: req.user,
-                  receiver: album.uploader._id,
-                  trigger: "comment",
-                  albumNotification: req.album._id,
-                  notification: `${user.username} comment on your album ${album.albumName}`,
-                });
-                await newNotification.save();
-
+                // try {
+                //   const newNotification = new Notification({
+                //     sender: req.user,
+                //     receiver: album.uploader._id,
+                //     trigger: "comment",
+                //     albumNotification: req.album._id,
+                //     notification: `${user.username} comment on your album ${album.albumName}`,
+                //   });
+                //   await newNotification.save();
+                // } catch (error) {
+                //   res.status(501);
+                //   next(error);
+                // }
                 res.status(201).json({
                   message: "comment has been created",
                 });
