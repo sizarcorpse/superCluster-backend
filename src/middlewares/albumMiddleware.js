@@ -37,7 +37,7 @@ module.exports = {
     var page;
     if (req.query.page ? (page = req.query.page) : (page = 1)) {
       req.query.page = page;
-      req.query.items = 20;
+      req.query.items = 2;
       next();
     } else {
       return res.status(404).json({

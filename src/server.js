@@ -28,6 +28,10 @@ mongoose.connect(
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.send({ welcome: "welcome to supercluster" });
+});
+
 const authRoute = require("./api/routes/user/Authentication");
 app.use("/api/user/auth", authRoute);
 
@@ -52,3 +56,5 @@ const port = process.env.PORT || 3333;
 app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}`);
 });
+
+//npm run dev
