@@ -29,7 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send({ welcome: "welcome to supercluster" });
+  res.send({ welcome: "welcome to supercluster it on heroku now" });
 });
 
 const authRoute = require("./api/routes/user/Authentication");
